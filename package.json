@@ -57,14 +57,12 @@
     "prepare": "if [ -e .git ] && [ -z $CI ]; then npm run prepare:husky && npm run prepare:rhachet; fi"
   },
   "dependencies": {
-    "@openai/codex-sdk": "0.77.0",
     "domain-objects": "0.31.9",
     "helpful-errors": "1.5.3",
     "openai": "5.8.2",
     "rhachet-artifact": "1.0.1",
     "rhachet-artifact-git": "1.1.5",
     "type-fns": "1.21.0",
-    "wrapper-fns": "1.1.7",
     "zod": "4.3.4"
   },
   "devDependencies": {

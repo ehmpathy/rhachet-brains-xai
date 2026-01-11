@@ -4,7 +4,6 @@ import { genArtifactGitFile } from 'rhachet-artifact-git';
 import { given, then, when } from 'test-fns';
 import { z } from 'zod';
 
-
 import { TEST_ASSETS_DIR } from '../../.test/assets/dir';
 import { genBrainAtom } from './genBrainAtom';
 

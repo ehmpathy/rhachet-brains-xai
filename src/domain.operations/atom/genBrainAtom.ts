@@ -1,10 +1,9 @@
 import OpenAI from 'openai';
+import { BrainAtom, castBriefsToPrompt } from 'rhachet';
 import type { Artifact } from 'rhachet-artifact';
 import type { GitFile } from 'rhachet-artifact-git';
 import type { Empty } from 'type-fns';
 import { z } from 'zod';
-
-import { BrainAtom, castBriefsToPrompt } from 'rhachet';
 
 /**
  * .what = supported xai atom slugs
