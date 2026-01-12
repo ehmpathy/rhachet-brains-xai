@@ -65,6 +65,9 @@
     "type-fns": "1.21.0",
     "zod": "4.3.4"
   },
+  "peerDependencies": {
+    "rhachet": ">=1.21.4"
+  },
   "devDependencies": {
     "@biomejs/biome": "2.3.8",
     "@commitlint/cli": "19.5.0",
