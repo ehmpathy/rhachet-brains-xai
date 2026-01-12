@@ -18,14 +18,14 @@ import { z } from 'zod';
 const brainAtom = genBrainAtom({ slug: 'xai/grok-code-fast-1' });
 
 // simple string output
-const response = await brainAtom.ask({
+const explanation = await brainAtom.ask({
   role: { briefs: [] },
   prompt: 'explain this code',
   schema: { output: z.string() },
 });
 
 // structured object output
-const result = await brainAtom.ask({
+const { summary, issues } = await brainAtom.ask({
   role: { briefs: [] },
   prompt: 'analyze this code',
   schema: { output: z.object({ summary: z.string(), issues: z.array(z.string()) }) },
