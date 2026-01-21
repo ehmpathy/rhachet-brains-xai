@@ -44,7 +44,7 @@
         ]
       },
       {
-        "matcher": "Write",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -59,20 +59,16 @@
             "author": "repo=ehmpathy/role=mechanic"
           }
         ]
-      },
+      }
+    ],
+    "Stop": [
       {
-        "matcher": "Edit",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "./node_modules/.bin/rhachet run --repo ehmpathy --role mechanic --init claude.hooks/pretooluse.forbid-terms.gerunds",
-            "timeout": 5,
-            "author": "repo=ehmpathy/role=mechanic"
-          },
-          {
-            "type": "command",
-            "command": "./node_modules/.bin/rhachet run --repo ehmpathy --role mechanic --init claude.hooks/pretooluse.forbid-terms.blocklist",
-            "timeout": 5,
+            "command": "pnpm run --if-present fix",
+            "timeout": 30,
             "author": "repo=ehmpathy/role=mechanic"
           }
         ]
@@ -109,6 +105,7 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git show:*)",
+      "Bash(git check-ignore:*)",
       "Bash(git blame:*)",
       "Bash(git describe:*)",
       "Bash(git ls-files:*)",

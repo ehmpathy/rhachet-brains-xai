@@ -1,55 +1,20 @@
 import OpenAI from 'openai';
-import { BrainAtom, castBriefsToPrompt } from 'rhachet';
+import {
+  BrainAtom,
+  BrainOutput,
+  BrainOutputMetrics,
+  castBriefsToPrompt,
+} from 'rhachet';
+import { calcBrainOutputCost } from 'rhachet/dist/domain.operations/brainCost/calcBrainOutputCost';
 import type { Artifact } from 'rhachet-artifact';
 import type { GitFile } from 'rhachet-artifact-git';
 import type { Empty } from 'type-fns';
 import { z } from 'zod';
 
-/**
- * .what = supported xai atom slugs
- * .why = enables type-safe slug specification with model variants
- */
-export type XAIAtomSlug =
-  | 'xai/grok-code-fast-1'
-  | 'xai/grok-3'
-  | 'xai/grok-3-mini'
-  | 'xai/grok-4'
-  | 'xai/grok-4-fast';
+import { CONFIG_BY_ATOM_SLUG, type XaiBrainAtomSlug } from './BrainAtom.config';
 
-/**
- * .what = model configuration by slug
- * .why = maps slugs to API model names, descriptions, and context sizes
- */
-const CONFIG_BY_SLUG: Record<
-  XAIAtomSlug,
-  { model: string; description: string; context: number }
-> = {
-  'xai/grok-code-fast-1': {
-    model: 'grok-code-fast-1',
-    description: 'grok-code-fast-1 - optimized for agentic coding (256K)',
-    context: 256_000,
-  },
-  'xai/grok-3': {
-    model: 'grok-3-beta',
-    description: 'grok-3 - balanced reasoning (131K)',
-    context: 131_000,
-  },
-  'xai/grok-3-mini': {
-    model: 'grok-3-mini-beta',
-    description: 'grok-3-mini - fast and cost-effective (131K)',
-    context: 131_000,
-  },
-  'xai/grok-4': {
-    model: 'grok-4-07-09',
-    description: 'grok-4 - advanced reasoning (256K)',
-    context: 256_000,
-  },
-  'xai/grok-4-fast': {
-    model: 'grok-4-fast-reasoning',
-    description: 'grok-4-fast - frontier with reasoning (2M)',
-    context: 2_000_000,
-  },
-};
+// re-export for consumers
+export type { XaiBrainAtomSlug } from './BrainAtom.config';
 
 /**
  * .what = factory to generate xai brain atom instances
@@ -58,21 +23,22 @@ const CONFIG_BY_SLUG: Record<
  * .note = xai api is openai-compatible with baseURL override
  *
  * .example
- *   genBrainAtom({ slug: 'xai/grok-code-fast-1' })
- *   genBrainAtom({ slug: 'xai/grok-3-mini' }) // fast + cheap
- *   genBrainAtom({ slug: 'xai/grok-4' }) // advanced reasoning
+ *   genBrainAtom({ slug: 'xai/grok/code-fast-1' })
+ *   genBrainAtom({ slug: 'xai/grok/3-mini' }) // fast + cheap
+ *   genBrainAtom({ slug: 'xai/grok/4' }) // advanced
  */
-export const genBrainAtom = (input: { slug: XAIAtomSlug }): BrainAtom => {
-  const config = CONFIG_BY_SLUG[input.slug];
+export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
+  const config = CONFIG_BY_ATOM_SLUG[input.slug];
 
   return new BrainAtom({
     repo: 'xai',
     slug: input.slug,
     description: config.description,
+    spec: config.spec,
 
     /**
      * .what = stateless inference (no tool use)
-     * .why = provides direct model access for reasoning tasks
+     * .why = provides direct model access for tasks
      */
     ask: async <TOutput>(
       askInput: {
@@ -81,7 +47,10 @@ export const genBrainAtom = (input: { slug: XAIAtomSlug }): BrainAtom => {
         schema: { output: z.Schema<TOutput> };
       },
       context?: Empty,
-    ): Promise<TOutput> => {
+    ): Promise<BrainOutput<TOutput>> => {
+      // track start time for elapsed duration
+      const startedAt = Date.now();
+
       // compose system prompt from briefs
       const systemPrompt = askInput.role.briefs
         ? await castBriefsToPrompt({ briefs: askInput.role.briefs })
@@ -124,7 +93,55 @@ export const genBrainAtom = (input: { slug: XAIAtomSlug }): BrainAtom => {
 
       // parse JSON response and validate via schema
       const parsed = JSON.parse(content);
-      return askInput.schema.output.parse(parsed);
+      const output = askInput.schema.output.parse(parsed);
+
+      // calculate elapsed time
+      const elapsedMs = Date.now() - startedAt;
+
+      // extract token usage from response
+      const tokensInput = response.usage?.prompt_tokens ?? 0;
+      const tokensOutput = response.usage?.completion_tokens ?? 0;
+      const tokensCached =
+        (
+          response.usage as {
+            prompt_tokens_details?: { cached_tokens?: number };
+          }
+        )?.prompt_tokens_details?.cached_tokens ?? 0;
+
+      // calculate character counts
+      const charsInput = (systemPrompt?.length ?? 0) + askInput.prompt.length;
+      const charsOutput = content.length;
+
+      // define size for metrics and cost calculation
+      const size = {
+        tokens: {
+          input: tokensInput,
+          output: tokensOutput,
+          cache: { get: tokensCached, set: 0 },
+        },
+        chars: {
+          input: charsInput,
+          output: charsOutput,
+          cache: { get: 0, set: 0 },
+        },
+      };
+
+      // calculate cash costs via rhachet utility
+      const { cash } = calcBrainOutputCost({
+        for: { tokens: size.tokens },
+        with: { cost: { cash: config.spec.cost.cash } },
+      });
+
+      // build metrics
+      const metrics = new BrainOutputMetrics({
+        size,
+        cost: {
+          time: { milliseconds: elapsedMs },
+          cash,
+        },
+      });
+
+      return new BrainOutput({ output, metrics });
     },
   });
 };
