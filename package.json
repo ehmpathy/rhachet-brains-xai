@@ -2,7 +2,7 @@
   "name": "rhachet-brains-xai",
   "author": "ehmpathy",
   "description": "rhachet brain.atom adapter for xai grok models",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "repository": "ehmpathy/rhachet-brains-xai",
   "homepage": "https://github.com/ehmpathy/rhachet-brains-xai",
   "keywords": [
