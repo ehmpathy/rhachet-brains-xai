@@ -8,11 +8,14 @@ import { genBrainAtom } from '../../domain.operations/atom/genBrainAtom';
  */
 export const getBrainAtomsByXAI = (): BrainAtom[] => {
   return [
-    genBrainAtom({ slug: 'xai/grok-code-fast-1' }),
-    genBrainAtom({ slug: 'xai/grok-3' }),
-    genBrainAtom({ slug: 'xai/grok-3-mini' }),
-    genBrainAtom({ slug: 'xai/grok-4' }),
-    genBrainAtom({ slug: 'xai/grok-4-fast' }),
+    genBrainAtom({ slug: 'xai/grok/code-fast-1' }),
+    genBrainAtom({ slug: 'xai/grok/3' }),
+    genBrainAtom({ slug: 'xai/grok/3-mini' }),
+    genBrainAtom({ slug: 'xai/grok/4' }),
+    genBrainAtom({ slug: 'xai/grok/4-fast-wout-reason' }),
+    genBrainAtom({ slug: 'xai/grok/4-fast-with-reason' }),
+    genBrainAtom({ slug: 'xai/grok/4.1-fast-wout-reason' }),
+    genBrainAtom({ slug: 'xai/grok/4.1-fast-with-reason' }),
   ];
 };
 

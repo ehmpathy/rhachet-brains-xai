@@ -1,7 +1,7 @@
 import { BadRequestError } from 'helpful-errors';
 import path from 'path';
 import { genArtifactGitFile } from 'rhachet-artifact-git';
-import { given, then, when } from 'test-fns';
+import { given, then, useThen, when } from 'test-fns';
 import { z } from 'zod';
 
 import { TEST_ASSETS_DIR } from '../../.test/assets/dir';
@@ -18,16 +18,16 @@ describe('genBrainAtom.integration', () => {
   jest.setTimeout(30000);
 
   // use grok-code-fast-1 for fast integration tests
-  const brainAtom = genBrainAtom({ slug: 'xai/grok-code-fast-1' });
+  const brainAtom = genBrainAtom({ slug: 'xai/grok/code-fast-1' });
 
-  given('[case1] genBrainAtom({ slug: "xai/grok-code-fast-1" })', () => {
+  given('[case1] genBrainAtom({ slug: "xai/grok/code-fast-1" })', () => {
     when('[t0] atom is created', () => {
       then('repo is "xai"', () => {
         expect(brainAtom.repo).toEqual('xai');
       });
 
-      then('slug is "xai/grok-code-fast-1"', () => {
-        expect(brainAtom.slug).toEqual('xai/grok-code-fast-1');
+      then('slug is "xai/grok/code-fast-1"', () => {
+        expect(brainAtom.slug).toEqual('xai/grok/code-fast-1');
       });
 
       then('description is defined', () => {
@@ -39,15 +39,34 @@ describe('genBrainAtom.integration', () => {
 
   given('[case2] ask is called', () => {
     when('[t0] with simple prompt', () => {
-      then('it returns a substantive response', async () => {
-        const result = await brainAtom.ask({
+      // call the operation once and share result across assertions
+      const result = useThen('it returns a response', async () =>
+        brainAtom.ask({
           role: {},
           prompt: 'respond with exactly: hello world',
           schema: { output: outputSchema },
-        });
-        expect(result.content).toBeDefined();
-        expect(result.content.length).toBeGreaterThan(0);
-        expect(result.content.toLowerCase()).toContain('hello');
+        }),
+      );
+
+      then('response contains "hello"', () => {
+        expect(result.output.content).toBeDefined();
+        expect(result.output.content.length).toBeGreaterThan(0);
+        expect(result.output.content.toLowerCase()).toContain('hello');
+      });
+
+      then('metrics includes token counts', () => {
+        expect(result.metrics.size.tokens.input).toBeGreaterThan(0);
+        expect(result.metrics.size.tokens.output).toBeGreaterThan(0);
+      });
+
+      then('metrics includes cash costs', () => {
+        expect(result.metrics.cost.cash.deets.input).toBeDefined();
+        expect(result.metrics.cost.cash.deets.output).toBeDefined();
+        expect(result.metrics.cost.cash.total).toBeDefined();
+      });
+
+      then('metrics includes time cost', () => {
+        expect(result.metrics.cost.time).toBeDefined();
       });
     });
 
@@ -63,8 +82,8 @@ describe('genBrainAtom.integration', () => {
           prompt: 'say hello',
           schema: { output: outputSchema },
         });
-        expect(result.content).toBeDefined();
-        expect(result.content).toContain('ZEBRA42');
+        expect(result.output.content).toBeDefined();
+        expect(result.output.content).toContain('ZEBRA42');
       });
     });
   });
