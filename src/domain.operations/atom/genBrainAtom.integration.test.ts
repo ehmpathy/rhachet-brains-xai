@@ -87,4 +87,55 @@ describe('genBrainAtom.integration', () => {
       });
     });
   });
+
+  given('[case3] episode continuation', () => {
+    when('[t0] ask is called with initial prompt', () => {
+      const resultFirst = useThen('it succeeds', async () =>
+        brainAtom.ask({
+          role: {},
+          prompt:
+            'remember this secret code: MANGO77. respond with "code received"',
+          schema: { output: outputSchema },
+        }),
+      );
+
+      then('it returns an episode', () => {
+        expect(resultFirst.episode).toBeDefined();
+        expect(resultFirst.episode.hash).toBeDefined();
+        expect(resultFirst.episode.exchanges).toHaveLength(1);
+      });
+
+      then('series is null for atoms', () => {
+        expect(resultFirst.series).toBeNull();
+      });
+    });
+
+    when('[t1] ask is called with continuation via on.episode', () => {
+      const resultFirst = useThen('first ask succeeds', async () =>
+        brainAtom.ask({
+          role: {},
+          prompt:
+            'remember this secret code: PAPAYA99. respond with "code stored"',
+          schema: { output: outputSchema },
+        }),
+      );
+
+      const resultSecond = useThen('second ask succeeds', async () =>
+        brainAtom.ask({
+          on: { episode: resultFirst.episode },
+          role: {},
+          prompt: 'what was the secret code i told you to remember?',
+          schema: { output: outputSchema },
+        }),
+      );
+
+      then('continuation remembers context from prior exchange', () => {
+        expect(resultSecond.output.content).toContain('PAPAYA99');
+      });
+
+      then('episode accumulates exchanges', () => {
+        expect(resultSecond.episode.exchanges).toHaveLength(2);
+      });
+    });
+  });
 });

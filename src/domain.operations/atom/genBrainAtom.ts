@@ -1,11 +1,14 @@
 import OpenAI from 'openai';
 import {
   BrainAtom,
+  type BrainAtomPlugs,
+  type BrainEpisode,
   BrainOutput,
   BrainOutputMetrics,
+  calcBrainOutputCost,
   castBriefsToPrompt,
-} from 'rhachet';
-import { calcBrainOutputCost } from 'rhachet/dist/domain.operations/brainCost/calcBrainOutputCost';
+  genBrainContinuables,
+} from 'rhachet/brains';
 import type { Artifact } from 'rhachet-artifact';
 import type { GitFile } from 'rhachet-artifact-git';
 import type { Empty } from 'type-fns';
@@ -39,15 +42,19 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
     /**
      * .what = stateless inference (no tool use)
      * .why = provides direct model access for tasks
+     *
+     * .note = supports continuation via `on.episode`
      */
     ask: async <TOutput>(
       askInput: {
+        on?: { episode: BrainEpisode };
+        plugs?: BrainAtomPlugs;
         role: { briefs?: Artifact<typeof GitFile>[] };
         prompt: string;
         schema: { output: z.Schema<TOutput> };
       },
       context?: Empty,
-    ): Promise<BrainOutput<TOutput>> => {
+    ): Promise<BrainOutput<TOutput, 'atom'>> => {
       // track start time for elapsed duration
       const startedAt = Date.now();
 
@@ -64,10 +71,16 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
           baseURL: 'https://api.x.ai/v1',
         });
 
-      // build messages array
+      // build messages array with prior exchanges for continuation
       const messages: OpenAI.ChatCompletionMessageParam[] = [];
       if (systemPrompt) {
         messages.push({ role: 'system', content: systemPrompt });
+      }
+      if (askInput.on?.episode) {
+        for (const exchange of askInput.on.episode.exchanges) {
+          messages.push({ role: 'user', content: exchange.input });
+          messages.push({ role: 'assistant', content: exchange.output });
+        }
       }
       messages.push({ role: 'user', content: askInput.prompt });
 
@@ -141,7 +154,21 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
         },
       });
 
-      return new BrainOutput({ output, metrics });
+      // build continuables (episode + series) for this invocation
+      const { episode, series } = await genBrainContinuables({
+        for: { grain: 'atom' },
+        on: { episode: askInput.on?.episode ?? null, series: null },
+        with: {
+          exchange: {
+            input: askInput.prompt,
+            output: content,
+            exid: response.id ?? null,
+          },
+          episode: { exid: response.id ?? null },
+        },
+      });
+
+      return new BrainOutput({ output, metrics, episode, series });
     },
   });
 };
