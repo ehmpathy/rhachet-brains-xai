@@ -21,6 +21,12 @@
             "command": "./node_modules/.bin/rhachet run --repo ehmpathy --role mechanic --init claude.hooks/sessionstart.notify-permissions",
             "timeout": 5,
             "author": "repo=ehmpathy/role=mechanic"
+          },
+          {
+            "type": "command",
+            "command": "./node_modules/.bin/rhachet run --repo bhuild --role behaver --init claude.hooks/sessionstart.boot-behavior",
+            "timeout": 10,
+            "author": "repo=bhuild/role=behaver"
           }
         ]
       }
@@ -116,16 +122,27 @@
       "Bash(npx rhachet run --skill cpsafe:*)",
       "Bash(npx rhachet run --skill mvsafe:*)",
       "Bash(npx rhachet run --skill rmsafe:*)",
+      "Bash(npx rhachet run --skill symlink:*)",
       "Bash(npx rhachet run --skill show.gh.action.logs:*)",
       "Bash(npx rhachet run --skill show.gh.test.errors:*)",
       "Bash(npx rhachet run --skill show.gh.test.errors --scope test-integration)",
+      "Bash(npx rhachet run --skill get.package.docs:*)",
+      "Bash(npx rhachet run --skill get.package.docs readme --of iso-price)",
+      "Bash(npx rhachet run --skill get.package.docs filetree --of iso-price)",
       "Bash(npx rhachet run:*)",
       "Bash(npx rhachet:*)",
       "Bash(npm view:*)",
       "Bash(npm list:*)",
       "Bash(npm remove:*)",
       "Bash(npm help:*)",
+      "Bash(npm why:*)",
+      "Bash(pnpm view:*)",
+      "Bash(pnpm list:*)",
+      "Bash(pnpm remove:*)",
       "Bash(pnpm help:*)",
+      "Bash(pnpm why:*)",
+      "Bash(npm ci)",
+      "Bash(pnpm install --frozen-lockfile)",
       "Bash(npx tsx ./bin/run:*)",
       "Bash(npm run build:*)",
       "Bash(npm run build:compile)",
@@ -247,6 +264,7 @@
       "Bash(git remote set-url:*)",
       "Bash(git stash:*)",
       "Bash(git tag -d:*)",
+      "Bash(ln:*)",
       "Bash(mv:*)",
       "Bash(npx biome:*)",
       "Bash(npx jest:*)",
