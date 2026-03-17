@@ -16,9 +16,10 @@ import type { GitFile } from 'rhachet-artifact-git';
 import type { Empty } from 'type-fns';
 import { z } from 'zod';
 
-import { castFromXaiToolCall } from '../../infra/cast/castFromXaiToolCall';
-import { castIntoXaiToolDef } from '../../infra/cast/castIntoXaiToolDef';
-import { castIntoXaiToolMessages } from '../../infra/cast/castIntoXaiToolMessages';
+import { castFromXaiToolCall } from '@src/infra/cast/castFromXaiToolCall';
+import { castIntoXaiToolDef } from '@src/infra/cast/castIntoXaiToolDef';
+import { castIntoXaiToolMessages } from '@src/infra/cast/castIntoXaiToolMessages';
+
 import { CONFIG_BY_ATOM_SLUG, type XaiBrainAtomSlug } from './BrainAtom.config';
 
 // re-export for consumers

@@ -1,7 +1,8 @@
 import { BrainAtom } from 'rhachet';
 import { given, then, when } from 'test-fns';
 
-import { genBrainAtom } from '../../domain.operations/atom/genBrainAtom';
+import { genBrainAtom } from '@src/domain.operations/atom/genBrainAtom';
+
 import { getBrainAtomsByXAI } from './index';
 
 describe('rhachet-brains-xai.unit', () => {

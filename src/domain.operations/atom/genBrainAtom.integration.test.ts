@@ -4,7 +4,8 @@ import { genArtifactGitFile } from 'rhachet-artifact-git';
 import { given, then, useThen, when } from 'test-fns';
 import { z } from 'zod';
 
-import { TEST_ASSETS_DIR } from '../../.test/assets/dir';
+import { TEST_ASSETS_DIR } from '@src/.test/assets/dir';
+
 import { genBrainAtom } from './genBrainAtom';
 
 const BRIEFS_DIR = path.join(TEST_ASSETS_DIR, '/example.briefs');

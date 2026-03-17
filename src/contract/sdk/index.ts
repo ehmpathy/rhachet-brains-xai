@@ -1,6 +1,6 @@
 import type { BrainAtom } from 'rhachet';
 
-import { genBrainAtom } from '../../domain.operations/atom/genBrainAtom';
+import { genBrainAtom } from '@src/domain.operations/atom/genBrainAtom';
 
 /**
  * .what = returns all brain atoms provided by xai
@@ -20,4 +20,4 @@ export const getBrainAtomsByXAI = (): BrainAtom[] => {
 };
 
 // re-export factory for direct access
-export { genBrainAtom } from '../../domain.operations/atom/genBrainAtom';
+export { genBrainAtom } from '@src/domain.operations/atom/genBrainAtom';
