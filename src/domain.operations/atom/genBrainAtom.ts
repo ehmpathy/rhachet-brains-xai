@@ -1,10 +1,12 @@
 import OpenAI from 'openai';
 import {
   BrainAtom,
-  type BrainAtomPlugs,
   type BrainEpisode,
   BrainOutput,
   BrainOutputMetrics,
+  type BrainPlugs,
+  type BrainPlugToolExecution,
+  type BrainPlugToolInvocation,
   calcBrainOutputCost,
   castBriefsToPrompt,
   genBrainContinuables,
@@ -14,6 +16,9 @@ import type { GitFile } from 'rhachet-artifact-git';
 import type { Empty } from 'type-fns';
 import { z } from 'zod';
 
+import { castFromXaiToolCall } from '../../infra/cast/castFromXaiToolCall';
+import { castIntoXaiToolDef } from '../../infra/cast/castIntoXaiToolDef';
+import { castIntoXaiToolMessages } from '../../infra/cast/castIntoXaiToolMessages';
 import { CONFIG_BY_ATOM_SLUG, type XaiBrainAtomSlug } from './BrainAtom.config';
 
 // re-export for consumers
@@ -40,21 +45,22 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
     spec: config.spec,
 
     /**
-     * .what = stateless inference (no tool use)
+     * .what = stateless inference with optional tool use
      * .why = provides direct model access for tasks
      *
      * .note = supports continuation via `on.episode`
+     * .note = prompt accepts BrainPlugToolExecution[] when tools are plugged
      */
-    ask: async <TOutput>(
+    ask: async <TOutput, TPlugs extends BrainPlugs = BrainPlugs>(
       askInput: {
         on?: { episode: BrainEpisode };
-        plugs?: BrainAtomPlugs;
+        plugs?: TPlugs;
         role: { briefs?: Artifact<typeof GitFile>[] };
-        prompt: string;
+        prompt: string | BrainPlugToolExecution[];
         schema: { output: z.Schema<TOutput> };
       },
       context?: Empty,
-    ): Promise<BrainOutput<TOutput, 'atom'>> => {
+    ): Promise<BrainOutput<TOutput, 'atom', TPlugs>> => {
       // track start time for elapsed duration
       const startedAt = Date.now();
 
@@ -71,6 +77,10 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
           baseURL: 'https://api.x.ai/v1',
         });
 
+      // convert plugs.tools to xai tools format
+      const tools: OpenAI.ChatCompletionTool[] | undefined =
+        askInput.plugs?.tools?.map((tool) => castIntoXaiToolDef({ tool }));
+
       // build messages array with prior exchanges for continuation
       const messages: OpenAI.ChatCompletionMessageParam[] = [];
       if (systemPrompt) {
@@ -82,15 +92,28 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
           messages.push({ role: 'assistant', content: exchange.output });
         }
       }
-      messages.push({ role: 'user', content: askInput.prompt });
+
+      // add prompt message (string or tool execution results)
+      const promptIsToolExecutions = Array.isArray(askInput.prompt);
+      if (promptIsToolExecutions) {
+        // cast tool executions to xai tool messages
+        const executions = askInput.prompt as BrainPlugToolExecution[];
+        const toolMessages = castIntoXaiToolMessages({ executions });
+        messages.push(...toolMessages);
+      }
+      if (!promptIsToolExecutions) {
+        messages.push({ role: 'user', content: askInput.prompt as string });
+      }
 
       // convert zod schema to json schema for structured output
       const jsonSchema = z.toJSONSchema(askInput.schema.output);
 
-      // call xai api with strict json_schema response format
+      // call xai api with tools and response_format
+      // note: response_format ensures structured output when brain answers directly
       const response = await openai.chat.completions.create({
         model: config.model,
         messages,
+        ...(tools ? { tools } : {}),
         response_format: {
           type: 'json_schema',
           json_schema: {
@@ -101,12 +124,20 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
         },
       });
 
+      // extract tool invocations from response (if present)
+      const toolCalls = response.choices[0]?.message?.tool_calls;
+      const invocations: BrainPlugToolInvocation[] | null = toolCalls
+        ? toolCalls.map((call) => castFromXaiToolCall({ call }))
+        : null;
+
       // extract content from response
       const content = response.choices[0]?.message?.content ?? '';
 
-      // parse JSON response and validate via schema
-      const parsed = JSON.parse(content);
-      const output = askInput.schema.output.parse(parsed);
+      // parse output (strict mode guarantees schema conformance when content present)
+      const output =
+        content.length === 0
+          ? null
+          : askInput.schema.output.parse(JSON.parse(content));
 
       // calculate elapsed time
       const elapsedMs = Date.now() - startedAt;
@@ -122,7 +153,10 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
         )?.prompt_tokens_details?.cached_tokens ?? 0;
 
       // calculate character counts
-      const charsInput = (systemPrompt?.length ?? 0) + askInput.prompt.length;
+      const promptChars = promptIsToolExecutions
+        ? JSON.stringify(askInput.prompt).length
+        : (askInput.prompt as string).length;
+      const charsInput = (systemPrompt?.length ?? 0) + promptChars;
       const charsOutput = content.length;
 
       // define size for metrics and cost calculation
@@ -155,12 +189,15 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
       });
 
       // build continuables (episode + series) for this invocation
+      const exchangeInput = promptIsToolExecutions
+        ? JSON.stringify(askInput.prompt)
+        : (askInput.prompt as string);
       const { episode, series } = await genBrainContinuables({
         for: { grain: 'atom' },
         on: { episode: askInput.on?.episode ?? null, series: null },
         with: {
           exchange: {
-            input: askInput.prompt,
+            input: exchangeInput,
             output: content,
             exid: response.id ?? null,
           },
@@ -168,7 +205,17 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
         },
       });
 
-      return new BrainOutput({ output, metrics, episode, series });
+      // build calls property
+      const calls = invocations ? { tools: invocations } : null;
+
+      // use type assertion for conditional types that TypeScript cannot infer
+      return new BrainOutput({
+        output: output as BrainOutput<TOutput, 'atom', TPlugs>['output'],
+        calls: calls as BrainOutput<TOutput, 'atom', TPlugs>['calls'],
+        metrics,
+        episode,
+        series,
+      });
     },
   });
 };
