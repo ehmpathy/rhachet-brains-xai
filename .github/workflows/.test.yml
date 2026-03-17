@@ -12,6 +12,10 @@ on:
         required: false
         type: string
         default: "us-east-1"
+    secrets:
+      xai-api-key:
+        description: "api key for xai, used in integration tests"
+        required: true
 
 permissions:
   id-token: write # required for oidc
@@ -223,6 +227,8 @@ jobs:
           set -eu
           patterns='${{ join(matrix.shard.patterns, '|') }}'
           THOROUGH=true npm run test:integration -- --testPathPatterns="$patterns" --json --outputFile=jest-results.json
+        env:
+          XAI_API_KEY: ${{ secrets.xai-api-key }}
 
       - name: test:integration (dynamic ${{ matrix.shard.shard }}/${{ matrix.shard.total }})
         if: matrix.shard.type == 'dynamic'
@@ -234,6 +240,8 @@ jobs:
           else
             THOROUGH=true npm run test:integration -- --shard=${{ matrix.shard.shard }}/${{ matrix.shard.total }} --json --outputFile=jest-results.json
           fi
+        env:
+          XAI_API_KEY: ${{ secrets.xai-api-key }}
 
       - name: report slow tests
         if: always() && hashFiles('jest-results.json') != ''
@@ -292,6 +300,8 @@ jobs:
           set -eu
           patterns='${{ join(matrix.shard.patterns, '|') }}'
           THOROUGH=true npm run test:acceptance -- --testPathPatterns="$patterns" --json --outputFile=jest-results.json
+        env:
+          XAI_API_KEY: ${{ secrets.xai-api-key }}
 
       - name: test:acceptance (dynamic ${{ matrix.shard.shard }}/${{ matrix.shard.total }})
         if: matrix.shard.type == 'dynamic'
@@ -303,6 +313,8 @@ jobs:
           else
             THOROUGH=true npm run test:acceptance -- --shard=${{ matrix.shard.shard }}/${{ matrix.shard.total }} --json --outputFile=jest-results.json
           fi
+        env:
+          XAI_API_KEY: ${{ secrets.xai-api-key }}
 
       - name: report slow tests
         if: always() && hashFiles('jest-results.json') != ''
