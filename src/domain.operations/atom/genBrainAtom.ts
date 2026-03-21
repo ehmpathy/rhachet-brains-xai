@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import type { ContextBrainSupplier } from 'rhachet';
 import {
   BrainAtom,
   type BrainEpisode,
@@ -13,17 +14,30 @@ import {
 } from 'rhachet/brains';
 import type { Artifact } from 'rhachet-artifact';
 import type { GitFile } from 'rhachet-artifact-git';
-import type { Empty } from 'type-fns';
 import { z } from 'zod';
 
 import { castFromXaiToolCall } from '@src/infra/cast/castFromXaiToolCall';
 import { castIntoXaiToolDef } from '@src/infra/cast/castIntoXaiToolDef';
 import { castIntoXaiToolMessages } from '@src/infra/cast/castIntoXaiToolMessages';
 
-import { CONFIG_BY_ATOM_SLUG, type XaiBrainAtomSlug } from './BrainAtom.config';
+import { getSdkXaiCreds } from '../creds/getSdkXaiCreds';
+import {
+  type BrainSuppliesXai,
+  CONFIG_BY_ATOM_SLUG,
+  type XaiBrainAtomSlug,
+} from './BrainAtom.config';
 
 // re-export for consumers
-export type { XaiBrainAtomSlug } from './BrainAtom.config';
+export type { BrainSuppliesXai, XaiBrainAtomSlug } from './BrainAtom.config';
+
+/**
+ * .what = typed context for xai brain supplier
+ * .why = enables type-safe credential injection via genContextBrainSupplier('xai', ...)
+ */
+export type ContextBrainSupplierXai = ContextBrainSupplier<
+  'xai',
+  BrainSuppliesXai
+>;
 
 /**
  * .what = factory to generate xai brain atom instances
@@ -36,7 +50,9 @@ export type { XaiBrainAtomSlug } from './BrainAtom.config';
  *   genBrainAtom({ slug: 'xai/grok/3-mini' }) // fast + cheap
  *   genBrainAtom({ slug: 'xai/grok/4' }) // advanced
  */
-export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
+export const genBrainAtom = (input: {
+  slug: XaiBrainAtomSlug;
+}): BrainAtom<ContextBrainSupplierXai> => {
   const config = CONFIG_BY_ATOM_SLUG[input.slug];
 
   return new BrainAtom({
@@ -60,7 +76,7 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
         prompt: string | BrainPlugToolExecution[];
         schema: { output: z.Schema<TOutput> };
       },
-      context?: Empty,
+      context?: ContextBrainSupplierXai,
     ): Promise<BrainOutput<TOutput, 'atom', TPlugs>> => {
       // track start time for elapsed duration
       const startedAt = Date.now();
@@ -70,13 +86,14 @@ export const genBrainAtom = (input: { slug: XaiBrainAtomSlug }): BrainAtom => {
         ? await castBriefsToPrompt({ briefs: askInput.role.briefs })
         : undefined;
 
-      // get openai client from context or create new one with xai baseURL
-      const openai =
-        (context?.openai as OpenAI | undefined) ??
-        new OpenAI({
-          apiKey: process.env.XAI_API_KEY,
-          baseURL: 'https://api.x.ai/v1',
-        });
+      // get xai credentials from context supplier or env var fallback
+      const creds = await getSdkXaiCreds({}, context);
+
+      // create openai client with xai baseURL
+      const openai = new OpenAI({
+        apiKey: creds.XAI_API_KEY,
+        baseURL: 'https://api.x.ai/v1',
+      });
 
       // convert plugs.tools to xai tools format
       const tools: OpenAI.ChatCompletionTool[] | undefined =
