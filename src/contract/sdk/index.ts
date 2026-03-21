@@ -19,5 +19,9 @@ export const getBrainAtomsByXAI = (): BrainAtom[] => {
   ];
 };
 
-// re-export factory for direct access
-export { genBrainAtom } from '@src/domain.operations/atom/genBrainAtom';
+// re-export factory and types for direct access
+export {
+  type BrainSuppliesXai,
+  type ContextBrainSupplierXai,
+  genBrainAtom,
+} from '@src/domain.operations/atom/genBrainAtom';

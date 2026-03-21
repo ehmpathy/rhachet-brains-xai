@@ -51,7 +51,90 @@ stateless inference without tool use.
 
 ## environment
 
-requires `XAI_API_KEY` environment variable.
+requires `XAI_API_KEY` via environment variable or context supplier.
+
+### env var (simple)
+
+```sh
+export XAI_API_KEY=your-api-key
+```
+
+### context supplier (secure)
+
+for production, inject credentials via context supplier to avoid plaintext storage:
+
+```ts
+import { genContextBrainSupplier } from 'rhachet';
+import { genBrainAtom, type BrainSuppliesXai } from 'rhachet-brains-xai';
+
+// create context with async creds getter
+const context = genContextBrainSupplier<'xai', BrainSuppliesXai>('xai', {
+  creds: async () => ({
+    XAI_API_KEY: await yourSecretsManager.get('XAI_API_KEY'),
+  }),
+});
+
+// pass context to ask()
+const atom = genBrainAtom({ slug: 'xai/grok/code-fast-1' });
+const result = await atom.ask(
+  {
+    role: {},
+    prompt: 'hello',
+    schema: { output: z.object({ message: z.string() }) },
+  },
+  context,
+);
+```
+
+benefits:
+- credentials fetched just-in-time
+- credentials never stored in memory as plaintext
+- credentials can be rotated without restart
+- credentials scoped to specific operations
+- fallback to env var when context not provided
+
+### multi-tenant isolation
+
+different contexts enable different credentials per call:
+
+```ts
+import { genContextBrainSupplier } from 'rhachet';
+import { type BrainSuppliesXai } from 'rhachet-brains-xai';
+
+const getContextForCustomer = (input: { customerId: string }) =>
+  genContextBrainSupplier<'xai', BrainSuppliesXai>('xai', {
+    creds: async () => ({
+      XAI_API_KEY: await keyrack.get({ owner: input.customerId, key: 'XAI_API_KEY' }),
+    }),
+  });
+
+// customer A uses their credentials
+await atom.ask({ ... }, getContextForCustomer({ customerId: 'customer-a' }));
+
+// customer B uses their credentials
+await atom.ask({ ... }, getContextForCustomer({ customerId: 'customer-b' }));
+```
+
+### credential cache
+
+the getter is called fresh per `ask()`. for high-frequency usage, cache with `with-simple-cache`:
+
+```ts
+import { genContextBrainSupplier } from 'rhachet';
+import { type BrainSuppliesXai } from 'rhachet-brains-xai';
+import { createCache } from 'simple-in-memory-cache';
+import { withSimpleCache } from 'with-simple-cache';
+
+const cache = createCache();
+const getXaiCreds = withSimpleCache(
+  async () => ({ XAI_API_KEY: await yourSecretsManager.get('XAI_API_KEY') }),
+  { cache },
+);
+
+const context = genContextBrainSupplier<'xai', BrainSuppliesXai>('xai', {
+  creds: getXaiCreds,
+});
+```
 
 ## sources
 

@@ -12,6 +12,14 @@ export type BrainAtomConfig = {
 };
 
 /**
+ * .what = supplies for xai brain supplier
+ * .why = enables credential injection without plaintext storage
+ */
+export type BrainSuppliesXai = {
+  creds: () => Promise<{ XAI_API_KEY: string }>;
+};
+
+/**
  * .what = supported xai atom slugs
  * .why = enables type-safe slug specification with model variants
  */
